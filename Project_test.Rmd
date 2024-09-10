@@ -33,12 +33,39 @@ plot(pressure)
 Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
 
 ```{r}
+mean(c(20, 68, 45, 76, 41, 36, 13, 52, 77, 53, 70, 73))
+```
+
+```{r}
+var(c(65.14, 49.87, 34.11, 43.23, 35.72, 35.73, 70.86))
+```
+
+```{r}
+sd(c(65.14, 49.87, 34.11, 43.23, 35.72, 35.73, 70.86))
+```
+
+```{r}
+describe(data)
+```
+
+
+```{r}
   data %>%
   select(`Группа крови`, `Рост`)
 ```
+
 ```{r}
 data %>%
   select(`Группа`, where(is.numeric) & (function(x) mean(x, na.rm = TRUE) > 10))
 ```
 
+```{r}
+data %>%
+  select(where(is.numeric))
+```
+
+```{r}
+data %>%
+  slice(1:10)
+```
 
