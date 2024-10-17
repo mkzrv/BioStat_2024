@@ -4,7 +4,7 @@ output:
   html_document: default
   word_document:
     toc: TRUE
-date: "2024-09-18"
+date: "2024-10-17"
 ---
 
 ```{r setup, include=FALSE}
@@ -81,6 +81,97 @@ ggplot()+
 - Можно не пересохранять новый датафрейм в переменную, а выполнять операцию "на лету" и передавать модифицированный набор данных через пайп сразу в `ggplot()`.
 
 - Можно сделать линию, проходящую по 50% отсечке чуть более явной (параметр `linewidth`), но это уже из категории "вкусовщина" и в само задание не входит.
+
+
+
+## Боксплоты
+### 1
+```{r, fig.width=14, fig.height=14}
+theme_custom <- theme(
+  title = element_text(size = 26), 
+  axis.text = element_text(size = 20), 
+  legend.text = element_text(size = 20), 
+  axis.title = element_text(size = 24),
+  legend.title = element_text(size = 22),
+  panel.background = element_rect(fill = "white", colour = "black"),
+  panel.grid.major = element_line(colour = "grey90", size = 0.8)
+  )
+
+hogwarts %>%
+  select(`id`, `house`, `week.3`) %>%
+ggplot(aes(x = fct_reorder(house, week.3, .desc = TRUE), 
+           y = week.3))+
+  geom_boxplot(aes(fill = house))+
+               #notch = TRUE,
+               #outliers = FALSE,
+               #width = 0.75, 
+               #size = 1.2)+
+  #geom_jitter()+
+  scale_fill_manual(values = c("Gryffindor" = "#C50000", 
+                             "Hufflepuff" = "#ECB939", 
+                             "Ravenclaw" = "#41A6D9", 
+                             "Slytherin" = "#1F5D25"))+
+     
+  labs(title = "Week 3 scores by house", 
+       x = "House", 
+       y = "Score of week 3")+
+  
+theme_custom
+```
+
+### 2
+```{r, fig.width=14, fig.height=14}
+hogwarts %>%
+  select(id, `house`, `blood_status`, `week.3`) %>%
+ggplot(aes(x = fct_reorder(house, week.3, .desc = TRUE), 
+           y = week.3))+
+  geom_boxplot(aes(fill = blood_status),
+               notch = TRUE)+
+               #outliers = FALSE,
+               #width = 0.75, 
+               #size = 1.2)+
+  #geom_jitter()+
+     
+  labs(title = "Week 3 scores by house and blood status", 
+       x = "House", 
+       y = "Score of week 3")+
+    
+theme_custom
+
+```
+
+### 3
+```{r, fig.width=14, fig.height=14}
+boxplot3 <- hogwarts %>%
+  select(id, `house`, `blood_status`, `week.3`) %>%
+ggplot(aes(x = fct_reorder(house, week.3, .desc = TRUE), 
+           y = week.3))+
+  geom_boxplot(aes(fill = blood_status),
+               notch = TRUE,
+               outliers = FALSE,
+               width = 0.8, 
+               size = 1.2)+
+  geom_jitter()+
+  
+  labs(title = "Week 3 scores by house and blood status", 
+       x = "House", 
+       y = "Score of week 3",
+       caption = "Надеюсь сейчас все в порядке!")
+
+boxplot3+
+theme_custom
+```
+Комментарий от студента: Разделила графики по пунктам в разделе боксплоты, также добавила последний график в разделе разное.
+
+> Результат: 1.5 б.
+
+> Комментарии:
+
+- Отличный график, все очень неплохо.
+
+- Это не было прописано в тексте задания, но заголовок лучше центрировать по ширине (можно прописать это в теме, например, так: `plot.title = element.text(hjust = 0.5)`).
+
+- Я несколько запутался в том, с графиком из какого пункта имею дела (последний пункт блока боксплотов, или последний пункт "разного", оценку ставил как за второй вариант). В первом же нет дополнительной опции в виде подписи. Подпись обычно кодируется как `caption` и по умолчанию находится в правом нижнем углу и содержит информацию о, например, источнике данных.
 
 ## Разное
 ### 1
@@ -172,85 +263,6 @@ boxplot3+
 theme_custom
 
 ```
-
-## Боксплоты
-### 1
-```{r, fig.width=14, fig.height=14}
-hogwarts %>%
-  select(`id`, `house`, `week.3`) %>%
-ggplot(aes(x = fct_reorder(house, week.3, .desc = TRUE), 
-           y = week.3))+
-  geom_boxplot(aes(fill = house))+
-               #notch = TRUE,
-               #outliers = FALSE,
-               #width = 0.75, 
-               #size = 1.2)+
-  #geom_jitter()+
-  scale_fill_manual(values = c("Gryffindor" = "#C50000", 
-                             "Hufflepuff" = "#ECB939", 
-                             "Ravenclaw" = "#41A6D9", 
-                             "Slytherin" = "#1F5D25"))+
-     
-  labs(title = "Week 3 scores by house", 
-       x = "House", 
-       y = "Score of week 3")+
-  
-theme_custom
-```
-
-### 2
-```{r, fig.width=14, fig.height=14}
-hogwarts %>%
-  select(id, `house`, `blood_status`, `week.3`) %>%
-ggplot(aes(x = fct_reorder(house, week.3, .desc = TRUE), 
-           y = week.3))+
-  geom_boxplot(aes(fill = blood_status),
-               notch = TRUE)+
-               #outliers = FALSE,
-               #width = 0.75, 
-               #size = 1.2)+
-  #geom_jitter()+
-     
-  labs(title = "Week 3 scores by house and blood status", 
-       x = "House", 
-       y = "Score of week 3")+
-    
-theme_custom
-
-```
-
-### 3
-```{r, fig.width=14, fig.height=14}
-boxplot3 <- hogwarts %>%
-  select(id, `house`, `blood_status`, `week.3`) %>%
-ggplot(aes(x = fct_reorder(house, week.3, .desc = TRUE), 
-           y = week.3))+
-  geom_boxplot(aes(fill = blood_status),
-               notch = TRUE,
-               outliers = FALSE,
-               width = 0.8, 
-               size = 1.2)+
-  geom_jitter()+
-  
-  labs(title = "Week 3 scores by house and blood status", 
-       x = "House", 
-       y = "Score of week 3",
-       caption = "Надеюсь сейчас все в порядке!")
-
-boxplot3+
-theme_custom
-```
-Комментарий от студента: Разделила графики по пунктам в разделе боксплоты, также добавила последний график в разделе разное.
-
-> Результат: 1.5 б.
-
-> Комментарии:
-
-- Отличный график, все очень неплохо.
-
-- Это не было прописано в тексте задания, но заголовок лучше центрировать по ширине (можно прописать это в теме, например, так: `plot.title = element.text(hjust = 0.5)`).
-
-- Я несколько запутался в том, с графиком из какого пункта имею дела (последний пункт блока боксплотов, или последний пункт "разного", оценку ставил как за второй вариант). В первом же нет дополнительной опции в виде подписи. Подпись обычно кодируется как `caption` и по умолчанию находится в правом нижнем углу и содержит информацию о, например, источнике данных.
 
 ## Фасеты
 ### 1
