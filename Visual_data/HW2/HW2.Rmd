@@ -21,7 +21,7 @@ library(ggpubr)
 ```
 
 ```{r}
-hogwarts <- read.csv("hogwarts_2024.csv")
+hogwarts <- read.csv("~/BioStat/Визуализация_данных/HW2/hogwarts_2024.csv")
 ```
 
 ```{r}
@@ -147,7 +147,8 @@ theme_custom
 exams.score.slytherin
 ```
 
-\## geom_col \### 1
+## geom_col
+### 1
 
 ```{r}
 col1 <- hogwarts %>%
@@ -311,28 +312,28 @@ plot3.1.3 <- ggplot(potion_vs_runes)+
 comb.plot <- ggarrange(
   ggarrange(plot3.1.1, plot3.1.2, ncol = 2),   # Верхняя строка: два графика
   plot3.1.3,                                   # Нижняя строка: один график
-  ncol = 1,                                    # Внешняя структура в один столбец
+  ncol = 1,
   heights = c(1, 1.5),
-  common.legend = TRUE, # Одна общая легенда
-  legend = "bottom"                            # Легенда снизу
+  common.legend = TRUE,
+  legend = "bottom"
 )
 annotate_figure(comb.plot, top = text_grob("Comparison of Potion exam score and Study of ancient runes exam score", 
                                            size = 26,
                                            face = "bold"))
-#title = "Comparison of Potion exam score and Study of ancient runes exam score",
+
 ```
 
 ### 2
 
-```{r, fig.width=16, fig.height=10}
-blood.and.potion <- hogwarts %>%
+```{r, fig.width=16, fig.height=11}
+blood.and.potions <- hogwarts %>%
   group_by(bloodStatus) %>%
   summarise(meanPotionScore = mean(Potions.exam) %>% round(2),
             Min = (min(Potions.exam) %>% round(2)),
             Max = (max(Potions.exam) %>% round(2))
             )
 
-ggplot(blood.and.potion)+
+plot.b.p.1 <- ggplot(blood.and.potions)+
   #geom_col(aes(x = bloodStatus,
              #y = meanPotionScore,
              #fill = bloodStatus))+
@@ -344,10 +345,8 @@ ggplot(blood.and.potion)+
                         colour = bloodStatus),
                   linewidth =2,
                   fatten = 10)+
-  labs(title = "Distribution of average potions exam scores among students with different blood
-status", 
-       y = "Potiom exam score",
-       caption = "dots - average score, lines - min-max")+
+  labs( 
+       y = "Potiom exam score")+
   
   theme(legend.position = "none",
         plot.caption = element_text(size = 22, hjust = 1))+
@@ -359,20 +358,14 @@ status",
   
   theme_custom
 
-
-
-blood.and.potion
-```
-
-```{r}
-blood.potions <- hogwarts %>%
+blood.and.potions.why <- hogwarts %>%
   group_by(house, bloodStatus) %>%
   summarize(mean.Potions.exam = mean(Potions.exam, na.rm = TRUE) %>% round(2)
             #Min = (min(Potions.exam) %>% round(2)),
             #Max = (max(Potions.exam) %>% round(2))
             )
 
-ggplot(blood.potions)+
+plot.b.p.2 <- ggplot(blood.and.potions.why)+
   #geom_col(aes(x = bloodStatus,
              #y = meanPotionScore,
              #fill = bloodStatus))+
@@ -386,44 +379,30 @@ ggplot(blood.potions)+
                              "Ravenclaw" = "#41A6D9", 
                              "Slytherin" = "#1F5D25"),
                       name ="House")+
+  labs( 
+       y = "Potiom exam score")+
   theme_custom
 
-blood.potions
 
-#ggarrange()
+
+comb.plot.2 <- ggarrange(
+  ggarrange(plot.b.p.1, plot.b.p.2, ncol = 2, widths = c(1, 1)),   # Верхняя строка: два графика
+  #ncol = 1,
+  heights = c(1, 1),
+  common.legend = TRUE,
+  legend = "bottom"
+  #caption = "dots - average score, lines - min-max"
+)
+
+annotate_figure(comb.plot.2, top = text_grob("Distribution of average potions exam scores among students with different blood status",
+                                             size = 26, 
+                                             face = "bold"),
+                bottom = text_grob("dots - average score, lines - min-max", 
+                                                 hjust = 0, # Выравнивание по левому краю
+                                                 x = 0.1,     # Расположение слева
+                                                 size = 22))
+
 ```
-
-Комментарий: объединить последние два графика 
-
-
-
-
-
-```{r}
-potion_vs_runes <- hogwarts %>%
-  #summarise(meanPotion = mean(`Potion.exam`), meanRunes = mean(`Study.of.ancient.runes.exam
-#`)) %>%
-  pivot_longer(cols = c(Potions.exam, Study.of.ancient.runes.exam),
-               names_to = "subject",
-               values_to = "exam.score") %>%
-  select(id, subject, exam.score, house)
-
-  test_col <- ggplot(potion_vs_runes, aes(x = subject, y = exam.score))+
-    geom_col(aes(fill = house))+
-  theme_custom
-  test_col
-    
-  #test_pie <- ggplot(potion_vs_runes)+
-   #geom_col(aes(x = '', y = exam.score, fill = subject))+
-    
-    #coord_polar(theta = "y")+
-
-    #scale_fill_manual(values = c("Gryffindor" = "#C50000", 
-                            # "Hufflepuff" = "#ECB939", 
-                            # "Ravenclaw" = "#41A6D9", 
-                           #  "Slytherin" = "#1F5D25"),
-                    #  name ="House")+
-  #theme_custom
-  #test_pie
-#ggarrange(plotlist = list(test_pie, test_col), ncol = 2)
-```
+Интерпретация: Первый график показывает, что в среднем чистокровные студенты сдают экзамен по зельевариению немного лучше чем полукровные студенты, и лучше чем магглорожденные. Это может быть связано с тем, что студенты факультета Слизерин всегда получают отличные оценки по зельеварению (что также подтверждает график из задания 1.3) и на этом факультете большое число чистокровных студентов. 
+Но в среднем межфакультетные оценки, стратитифицированные по статусу крови, отличаются незначительно, так как оценки студентов остальных факультетов (Рэйвенкло, Гриффиндор, Хаффлпафф) уравнивают отличные оценки студентов Слизерина.
+Первый график также показывает широкий диапазон min-max, что также объясняется сильным различием между оценками студентов фвкультета Слизерин и студентами остальных факультетов.
