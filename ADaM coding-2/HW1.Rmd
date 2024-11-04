@@ -148,9 +148,15 @@ ADMH <- ADMH %>%
   select(
     STUDYID, USUBJID, TRTP, TRTPN, MHSEQ, MHCAT, MHTERM, MHDECOD,
     MHBODSYS, MHSTDTC, ASTDT, ASTDTF, MHENDTC, AENDT, AENDTF, MHENRTPT, MHENRF
-  )
+  ) 
 
 ```
+
+```{r}
+ADMH <- ADMH %>% mutate(MHSEQ = as.integer(MHSEQ)) 
+#  %>%  str()
+```
+
 
 ```{r}
 write.xlsx(ADMH, "ADMH.xlsx")
