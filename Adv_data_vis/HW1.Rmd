@@ -1,0 +1,313 @@
+---
+title: "Homework 1"
+author: "Kozyreva Marina"
+date: "2024-11-15"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(rstatix)
+library(ggpubr)
+library(dbscan)
+library(corrplot)
+library(corrr)
+library(factoextra)
+
+theme_set(theme_minimal())
+```
+
+
+## 1
+Сделайте копию датасета, в которой удалите колонки с количеством пропусков больше 100, а затем удалите все строки с пропусками.
+```{r}
+df_full <- readRDS("~/BioStat/Прод_виз_данных/very_low_birthweight.RDS")
+
+df_cleaned1 <- df_full %>%
+  select(where(~ sum(is.na(.)) <= 100)) %>%
+  filter(if_all(everything(), ~ !is.na(.)))
+```
+
+```{r}
+summary(df_full)
+str(df_full)
+```
+
+## 2
+Постройте графики плотности распределения для числовых переменных. Удалите выбросы, если таковые имеются. Преобразуйте категориальные переменные в факторы. Для любых двух числовых переменных раскрасьте график по переменной ‘inout’.
+
+```{r}
+df_cleaned2 <- df_cleaned1 %>%
+  mutate(
+    twn = as.factor(twn),
+    vent = as.factor(vent),
+    pneumo = as.factor(pneumo),
+    pda = as.factor(pda),
+    cld = as.factor(cld),
+    dead = as.factor(dead),
+    apg1 = as.factor(apg1)
+  ) %>%
+  
+  mutate(across(where(is.numeric), ~ ifelse(
+    . < quantile(., 0.25, na.rm = TRUE) - 1.5 * IQR(., na.rm = TRUE) | 
+    . > quantile(., 0.75, na.rm = TRUE) + 1.5 * IQR(., na.rm = TRUE), 
+    NA, .))) %>%
+  filter(if_all(everything(), ~ !is.na(.))) %>%
+  
+  mutate(ID = row_number()) %>%
+  relocate(ID, .before = 1) %>%
+  
+  filter(hospstay >= 0)
+  
+
+df2 <- df_cleaned2 %>%
+select(where(is.numeric), -ID) %>%
+  pivot_longer(cols = everything(), names_to = "variable", values_to = "value")
+
+  ggplot(df2, aes(x = value)) +
+  geom_density(fill = "lightblue", alpha = 0.5) +
+  facet_wrap(~ variable, scales = "free") +
+  labs(title = "Density plots for numeric data", x = "", y = "Density")
+  
+```
+
+```{r fig.width=9}
+plot1 <- ggplot(df_cleaned2, aes(x = pltct, fill = factor(inout))) +
+  geom_density(alpha = 0.5) +
+  labs(title = "Distribution density for lowph by variable 'inout'", 
+       x = "lowph", y = "density", fill = "inout") 
+  
+
+plot2 <- ggplot(df_cleaned2, aes(x = bwt, fill = factor(inout))) +
+  geom_density(alpha = 0.5) +
+  labs(title = "Distribution density for btw by variable 'inout'", 
+       x = "bwt", y = "density", fill = "inout") 
+  
+combined_plot <- ggarrange(plot1, plot2, 
+                           ncol = 2,        # Количество столбцов
+                           nrow = 1,        # Количество строк
+                           common.legend = TRUE,  # Общая легенда для графиков
+                           legend = "bottom"      # Размещение легенды внизу
+)
+combined_plot
+```
+
+
+```{r}
+df_long <- df_cleaned2 %>%
+  select(ID, where(is.numeric)) %>%
+  pivot_longer(cols = -ID, names_to = "variable", values_to = "value")
+
+  ggplot(df_long, aes(x = ID, y = value)) +
+  geom_point(fill = "lightblue", alpha = 0.5) +
+  facet_wrap(~ variable, scales = "free")
+```
+
+### 3
+Проведите тест на сравнение значений колонки ‘lowph’ между группами в переменной inout. Вид статистического теста определите самостоятельно. Визуализируйте результат через библиотеку 'rstatix'. Как бы вы интерпретировали результат, если бы знали, что более низкое значение lowph ассоциировано с более низкой выживаемостью?
+
+```{r}
+wilcox_test_result <- df_cleaned2 %>%
+  wilcox_test(lowph ~ inout) %>%
+  mutate(y.position = 7.6) %>%
+  print()
+
+ggboxplot(df_cleaned2, x = "inout", y = "lowph", 
+          color = "inout", palette = "jco") +
+  stat_pvalue_manual(wilcox_test_result, label = "p", tip.length = 0.01) +
+  labs(title = "Wilcoxon Rank Sum Test", y = "lowph", x = "inout")
+
+```
+
+P-value из Wilcoxon теста (5.77e-08) значительно меньше 0.05, следовательно есть статистически значимая разница в значениях lowph между двумя группами: born at Duke и transported.
+Если более низкие значения lowph ассоциированы с худшей выживаемостью, можно предположить, что младенцы из born at Duke имеют лучшие шансы на выживаемость по сравнению с группой transported.
+
+### 4
+Сделайте новый датафрейм, в котором оставьте только континуальные или ранговые данные, кроме 'birth', 'year' и 'exit'. Сделайте корреляционный анализ этих данных. Постройте два любых типа графиков для визуализации корреляций.
+Постройте иерархическую кластеризацию на этом датафрейме.
+
+```{r}
+df4 <- df_cleaned2 %>%
+  select(
+    where(is.numeric),
+    -c(ID, birth, year, exit)
+  )
+
+cor_matrix <- cor(df4, use = "complete.obs")
+print(cor_matrix)
+  
+
+
+
+```
+
+
+```{r}
+plot4.1 <- df4 %>% 
+  cor() %>% 
+  corrplot(
+    order = 'hclust'
+  )
+
+plot4.2 <- df4 %>% 
+  cor() %>% 
+  network_plot(min_cor = .0)
+
+print(plot4.1)
+print(plot4.2)
+```
+
+### 5
+Постройте иерархическую кластеризацию на этом датафрейме.
+
+```{r}
+df_scaled <- scale(df4)
+  rownames(df_scaled) <- df_cleaned2$ID
+dist_matrix <- dist(df_scaled, method = "euclidean")
+hc <- hclust(dist_matrix, method = "ward.D2")
+
+fviz_dend(hc, 
+          cex = 0.6)
+
+#fviz_dend(hc, 
+          #k = 3, 
+          #k_colors = "jco",
+          #type = "phylogenic", 
+          #repel = TRUE) # Избежать наслоения лейблов
+
+```
+
+### 6
+Сделайте одновременный график heatmap и иерархической кластеризации. Интерпретируйте результат.
+
+```{r}
+library(pheatmap)
+pheatmap(df_scaled,
+         clustering_method = "ward.D2",  # Метод кластеризации
+         scale = "none",                # Данные уже нормализованы
+         color = colorRampPalette(c("navy", "white", "firebrick"))(50),  # Цветовая палитра
+         main = "Heatmap with Hierarchical Clustering")
+```
+
+Субъекты с преимущественно низкими значениями hospstay могут представлять наблюдения с большими значениями bwt, gest и lowph и наоборот.
+
+### 7
+Проведите PCA анализ на этих данных. Проинтерпретируйте результат. Нужно ли применять шкалирование для этих данных перед проведением PCA?
+
+```{r}
+df.pca <- prcomp(df4, 
+                scale = T)
+summary(df.pca)
+fviz_eig(df.pca, 
+         addlabels = T, 
+         ylim = c(0, 50))
+
+fviz_pca_var(df.pca, col.var = "contrib")
+```
+Первая компонента объясняет 47.8% дисперсии данных, первые две компоненты объясняют 69% дисперсии данных, можно сделать вывод что их можно использовать для дальнейшего анализа.
+Шкалирование применять нужно, так как данные имеют разные единицы измерения и разную дисперсию.
+
+### 8
+Постройте biplot график для PCA. Раскрасьте его по значению колонки 'dead'.
+
+```{r}
+library(ggbiplot)
+
+biplot <- ggbiplot(df.pca, 
+         scale=0, alpha = 0.7,
+         groups = as.factor(df_cleaned2$dead))+
+  scale_color_discrete(
+    name = "Status",
+    labels = c("0" = "Alive", "1" = "Dead")
+  ) +
+  labs(title = "PCA Biplot colored by 'dead'")
+biplot
+```
+
+
+### 9
+Переведите последний график в 'plotly'. При наведении на точку нужно, чтобы отображалось id пациента.
+
+```{r}
+library(plotly)
+
+pca_data <- as.data.frame(df.pca$x)  # Извлекаем главные компоненты
+pca_data$ID <- rownames(df_cleaned2)         # Добавляем ID пациентов
+pca_data$dead <- as.factor(df_cleaned2$dead)
+pca_data$dead <- factor(pca_data$dead, levels = c("0", "1"), labels = c("Alive", "Dead"))
+
+plot9 <- ggplot(pca_data, aes(x = PC1, y = PC2, color = dead, text = ID)) +
+  geom_point(size = 2, alpha = 0.7) +
+  labs(title = "PCA Biplot colored by 'dead'", 
+       x = "PC1", 
+       y = "PC2",
+       )+
+scale_color_discrete(
+    name = "Status",
+    labels = c("0" = "Alive", "1" = "Dead"))
+
+# Преобразование в интерактивный график с помощью plotly
+plotly_plot <- ggplotly(plot9, tooltip = "text")  # 'text' отображает ID пациента
+plotly_plot
+```
+
+### 10
+Дайте содержательную интерпретацию PCA анализу. Почему использовать колонку 'dead' для выводов об ассоциации с выживаемостью некорректно?
+
+Вообще (PCA) используется для уменьшения размерности данных, выявления главных направлений вариации в данных и для упрощения визуализации данных.
+Как было сказано ранее, первая компонента объясняет 47.8% дисперсии данных, первые две компоненты объясняют 69% дисперсии данных, что является хорошим показателем для дальнейшего анализа.
+Самые длинные стрелки у переменных hospstay и gest, они вкладывают больше всего информации в объяснении вариации, также видно что они направлены в одну сторону, что свидетельствует об их корреляции.
+Вклад hosptstay, bwt и gest сильнее в компоненту PC1, pltct и lowph влияют на PC2.
+Из графика видно, что точки с Alive и Dead значениями не образуют кластеров, что указывает отсутствие тенденции разделения выживших и умерших на основе первых двух главных компонент.
+
+PCA основывается исключительно на входных переменных (hosptstay, bwt, gest, lowph, pltct) и их вариации. Переменная dead используется только для визуализации и никак не влияет на формирование главных компонент. Чтобы проверить, связаны ли переменные с выживаемостью корректнее использовать модели, такие как логистическая регрессия.
+
+
+```{r}
+
+```
+
+
+```{r}
+```
+
+
+```{r}
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
