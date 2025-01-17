@@ -1,0 +1,473 @@
+---
+title: "automatization_notebook_03"
+output: word_document
+date: "`r Sys.Date()`"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(dplyr)
+library(purrr)
+library(RColorBrewer)
+library(ggbeeswarm)
+library(corrplot)
+library(Hmisc)
+```
+
+# Чтение данных
+
+В вашем варианте нужно использовать датасет framingham.
+
+```{r}
+framingham <- read_csv("data/raw/framingham.csv")
+
+```
+
+# Выведите общее описание данных
+```{r}
+glimpse(framingham)
+
+```
+
+# Очистка данных
+
+1) Уберите переменные, в которых пропущенных значений больше 20% или уберите субъектов со слишком большим количеством пропущенных значений. Или совместите оба варианта. Напишите обоснование, почему вы выбрали тот или иной вариант:
+
+**Обоснование**: Выбрала убрать субъекты с отсутствием данных (>10%): так чуть-чуть сократится количество наблюдений (пациентов или участников), но сохранятся все переменные. Если убрать переменные то потеряется много данных, которые мы анализируем.
+
+2) Переименуйте переменные в человекочитаемый вид (что делать с пробелами в названиях?);
+
+3) В соответствии с описанием данных приведите переменные к нужному типу (numeric или factor);
+
+4) Отсортируйте данные по возрасту по убыванию;
+
+5) Сохраните в файл outliers.csv субъектов, которые являются выбросами (например, по правилу трёх сигм) — это необязательное задание со звёздочкой;
+
+6) Присвойте получившийся датасет переменной "cleaned_data".
+
+```{r}
+cleaned_data <- framingham %>%
+  filter(rowMeans(is.na(.)) <= 0.1) %>% #Отфильтровать строки где отсутствуют данные с большим чем 10% пропусками
+  rename(sex = male) %>% 
+  #str() %>% #Проверяем формат данных
+  mutate(across(where(~ all(. %in% c(0,1, NA))), ~ ifelse(. == 1, "yes", ifelse(. == 0, "no", NA)))) %>%
+  mutate(sex = ifelse(sex == "yes", "male", ifelse(sex == "no", "female", NA))) %>%
+  mutate(across(where(is.character), as.factor)) %>%
+  #str()
+  mutate(across(where(~ all(. %in% c(0, 1, 2, 3, 4, NA))), ~ as.factor(.))) %>%
+  arrange(desc(age)) #%>% str()
+  
+    #filter(cleaned_data)
+    #mean_x <- mean()
+  
+    #outliers <- cleaned_data %>%
+   
+```
+
+
+# Сколько осталось переменных?
+
+```{r}
+ncol(cleaned_data) %>%
+  print()
+```
+
+Осталось 16 переменных.
+
+
+# Сколько осталось случаев?
+
+```{r}
+nrow(cleaned_data) %>%
+  print()
+```
+
+4177 случаев.
+
+
+# Есть ли в данных идентичные строки?
+
+```{r}
+any(duplicated(cleaned_data))
+```
+
+Идентичных строк нет.
+
+
+# Сколько всего переменных с пропущенными значениями в данных и сколько пропущенных точек в каждой такой переменной?
+
+```{r}
+cleaned_data %>%
+  summarize(across(everything(), ~ sum(is.na(.))))
+```
+
+education - 93 пропущенных значения  
+cigsPerDay - 23  
+BPMeds - 51  
+totChol - 9  
+BMI - 13  
+heartRate - 1  
+glucose - 331  
+
+
+# Описательные статистики
+
+## Количественные переменные
+
+1) Рассчитайте для всех количественных переменных для каждой группы (TenYearCHD):
+
+1.1) Количество значений;
+
+1.2) Количество пропущенных значений;
+
+1.3) Среднее;
+
+1.4) Медиану;
+
+1.5) Стандартное отклонение;
+
+1.6) 25% квантиль и 75% квантиль;
+
+1.7) Интерквартильный размах;
+
+1.8) Минимум;
+
+1.9) Максимум;
+
+1.10) 95% ДИ для среднего - задание со звёздочкой.
+
+```{r}
+quantitative_vars <- cleaned_data %>%
+  #select(TenYearCHD, where(is.numeric)) %>%
+  #names()
+  group_by(TenYearCHD) %>%
+  summarise(
+    across(where(is.numeric),
+           list(
+             count = ~ sum(!is.na(.)),
+             missing = ~ sum(is.na(.)),
+             mean = ~ mean(., na.rm = TRUE),
+             median = ~ median(., na.rm = TRUE),
+             sd = ~ sd(., na.rm = TRUE),
+             `25_quantile` = ~ quantile(., probs = 0.25, na.rm = TRUE),
+             `75_quantile` = ~ quantile(., probs = 0.75, na.rm = TRUE),
+             IQR = ~ IQR(., na.rm = TRUE),
+             min_value = ~ min(., na.rm = TRUE),
+             max_value = ~ max(., na.rm = TRUE),
+             `95_CI_up` = ~ t.test(., conf.level = 0.95, na.rm = TRUE)$conf.int[1],
+             `95_CI_low` = ~ t.test(., conf.level = 0.95, na.rm = TRUE)$conf.int[2]
+           ), 
+           .names = "{col}_{fn}")) %>%
+
+    #across(where(is.numeric), ~ sum(!is.na(.)), .names = "count_{col}"),
+    #across(where(is.numeric), ~ sum(is.na(.)), .names = "empty_{col}")
+          
+  pivot_longer(-TenYearCHD, names_to = "name",   values_to = "value") %>%
+
+  #str()
+  mutate(value = round(value, digits = 2))
+    
+quantitative_vars
+
+```
+
+## Категориальные переменные
+
+1) Рассчитайте для всех категориальных переменных для каждой группы (TenYearCHD):
+
+1.1) Абсолютное количество;
+
+1.2) Относительное количество внутри группы;
+
+1.3) 95% ДИ для доли внутри группы - задание со звёздочкой.
+
+```{r}
+categorical_vars <- cleaned_data %>%
+  select(where(is.factor)) %>%
+
+  pivot_longer(cols = -TenYearCHD, names_to = "variable", values_to = "value") %>%
+  filter(!is.na(value), !is.na(TenYearCHD)) %>%
+  group_by(variable, value, TenYearCHD) %>%
+  summarise(abs_count = n(), .groups = "drop") %>%
+  group_by(variable, value) %>%
+  mutate(rel_count = abs_count / sum(abs_count)) %>%
+  mutate(rel_count = round(rel_count, digits = 2))
+
+#print(abs_count)
+print(categorical_vars)
+
+```
+
+# Визуализация
+
+## Количественные переменные
+
+1) Для каждой количественной переменной сделайте боксплоты по группам. Расположите их либо на отдельных рисунках, либо на одном, но читаемо;
+
+2) Наложите на боксплоты beeplots - задание со звёздочкой.
+
+3) Раскрасьте боксплоты с помощью библиотеки RColorBrewer.
+
+```{r}
+theme_custom <- theme(
+  title = element_text(size = 20), 
+  axis.text = element_text(size = 12), 
+  legend.text = element_text(size = 16), 
+  axis.title = element_text(size = 18),
+  legend.title = element_text(size = 18),
+  panel.background = element_rect(fill = "white", colour = "black"),
+  panel.grid.major = element_line(colour = "grey90", size = 0.8)
+  )
+
+variables <- c("age", "cigsPerDay", "totChol", "sysBP", "diaBP", "BMI", "heartRate", "glucose")
+palette <- "Pastel1"
+
+plots <- map(variables, ~ ggplot(cleaned_data) +
+              
+               geom_beeswarm(aes_string(x = "TenYearCHD", y = .x, color = "TenYearCHD"), size = 1, dodge.width = 0.1) +  # Beeplot
+               geom_boxplot(aes_string(x = "TenYearCHD", y = .x, fill = "TenYearCHD"), outlier.shape = NA) +
+               theme(legend.position = "none")+
+               scale_fill_brewer(palette = palette) +
+               scale_color_brewer(palette = palette) +
+               theme_custom)
+
+walk(plots, print)
+```
+
+
+
+## Категориальные переменные
+
+1) Сделайте подходящие визуализации категориальных переменных. Обоснуйте, почему выбрали именно этот тип.
+
+```{r}
+cat_plots_data <- cleaned_data %>%
+  select(where(is.factor)) %>%
+  pivot_longer(cols = -TenYearCHD, names_to = "variable", values_to = "value") %>%
+  filter(!is.na(value), !is.na(TenYearCHD))
+
+```
+
+```{r}
+p1 <- cat_plots_data %>%
+  filter(variable == "sex") %>%
+  ggplot()+
+  geom_bar(aes(x = value, fill = TenYearCHD))+
+  scale_fill_brewer(palette = palette) +
+  labs(x = "sex") +
+  theme_custom
+p1
+
+p2 <- cat_plots_data %>%
+  filter(variable == "education") %>%
+  ggplot()+
+  geom_bar(aes(x = value, fill = TenYearCHD))+
+  scale_fill_brewer(palette = palette) +
+  labs(x = "education") +
+  theme_custom
+p2
+
+p3 <- cat_plots_data %>%
+  filter(variable == "currentSmoker") %>%
+  ggplot()+
+  geom_bar(aes(x = value, fill = TenYearCHD))+
+  scale_fill_brewer(palette = palette) +
+  labs(x = "currentSmoker") +
+  theme_custom
+p3
+
+p4 <- cat_plots_data %>%
+  filter(variable == "BPMeds") %>%
+  ggplot()+
+  geom_bar(aes(x = value, fill = TenYearCHD))+
+  scale_fill_brewer(palette = palette) +
+  labs(x = "BPMeds") +
+  theme_custom
+p4
+
+p5 <- cat_plots_data %>%
+  filter(variable == "prevalentStroke") %>%
+  ggplot()+
+  geom_bar(aes(x = value, fill = TenYearCHD))+
+  scale_fill_brewer(palette = palette) +
+  labs(x = "prevalentStroke") +
+  theme_custom
+p5
+
+p6 <- cat_plots_data %>%
+  filter(variable == "prevalentHyp") %>%
+  ggplot()+
+  geom_bar(aes(x = value, fill = TenYearCHD))+
+  scale_fill_brewer(palette = palette) +
+  labs(x = "prevalentHyp") +
+  theme_custom
+p6
+
+p7 <- cat_plots_data %>%
+  filter(variable == "diabetes") %>%
+  ggplot()+
+  geom_bar(aes(x = value, fill = TenYearCHD))+
+  scale_fill_brewer(palette = palette) +
+  labs(x = "diabetes") +
+  theme_custom
+p7
+
+p8 <- cat_plots_data %>%
+  filter(variable == "cigsPerDay") %>%
+  ggplot()+
+  geom_bar(aes(x = value, fill = TenYearCHD))+
+  scale_fill_brewer(palette = palette) +
+  labs(x = "cigsPerDay") +
+  theme_custom
+p8
+```
+
+Обоснование: наглядно видно в сравнении разделение и по значению категориальной переменной, и по значению TenYearCHD в группе значения категориальной переменной.  
+
+
+# Статистические оценки
+
+## Проверка на нормальность
+
+1) Оцените каждую переменную на соответствие нормальному распределению с помощью теста Шапиро-Уилка. Какие из переменных являются нормальными и как как вы это поняли?
+
+```{r}
+shapiro_results <- cleaned_data %>%
+  select(where(is.numeric)) %>%
+  summarise(across(everything(), ~ list(shapiro.test(.)))) %>%
+  pivot_longer(
+    cols = everything(),
+    names_to = "Variable",
+    values_to = "Test_Result"
+  ) %>%
+  mutate(
+    Statistic = map_dbl(Test_Result, ~ .x$statistic),
+    p_value = map_dbl(Test_Result, ~ .x$p.value)
+  ) %>%
+  select(-Test_Result)
+
+print(shapiro_results)
+```
+
+H0 в тесте Шапиро-Уилка предполает нормальность распределения, соответственно значения p-value <-0.05 сообщают о несоответствии распределения нормальномую у всех количественных переменных.  
+
+
+2) Постройте для каждой количественной переменной QQ-плот. Отличаются ли выводы от теста Шапиро-Уилка? Какой метод вы бы предпочли и почему?
+
+```{r}
+numeric_data <- cleaned_data %>%
+  select(where(is.numeric)) %>%
+  pivot_longer(cols = everything(), names_to = "Variable", values_to = "Value")
+
+# Построение QQ-плотов с использованием ggplot2
+qq_plots <- numeric_data %>%
+  ggplot(aes(sample = Value)) +
+  stat_qq() +
+  stat_qq_line() +
+  facet_wrap(~ Variable, scales = "free") +
+  theme_custom
+
+# Отображение графика
+print(qq_plots)
+
+```
+
+График QQ-plot подтверждают отсутствие соответствия распределений нормальному, выводы от теста Шапиро-Уилка не отличаются.  
+Считаю что если нужна обязательная проверка распределений на нормальность, то лучше проводить и тест Шапиро-Уилка для получения значений статистики и p-value, и строить QQ-plot для визуализации.
+
+
+3) Ниже напишите, какие ещё методы проверки на нормальность вы знаете и какие у них есть ограничения.
+
+1. Тест Колмогорова-Смирнова: чувствителен к размеру выборки (при больших выборках даже небольшие отклонения от нормальности становятся значимыми), чувствителен к выбросам, предполагает, что нам известнты параметры распределения.  
+2. Тест Лиллефорса: тут параметры уже могут быть нам неизвестны, они оцениваются исходя из данных, но так же чувствителен к размеру выборки и выбросам.  
+3. Тест Андерсона-Дарлинга: чувствителен к выбросам, требует больших выборок.  
+4. Тест Cramer-von Mises: требует больших выборок, малочувствителен к отклонениям в распределении хвостов.
+5. Тест D'Агостино (Omnibus Test): так же требует больших выборок, менее мощный при наличии слабых отклонений от нормальности.
+
+
+## Сравнение групп
+
+1) Сравните группы (переменная **TenYearCHD**) по каждой переменной (как количественной, так и категориальной). Для каждой переменной выберите нужный критерий и кратко обоснуйте его выбор в комментариях.
+
+Количественные данные: так как все количественные переменные не распределены нормально, используем тест Манна-Уитни (Wilcoxon rank-sum test).  
+
+```{r}
+wilcox.test(age ~ TenYearCHD, data = cleaned_data)
+
+wilcox.test(cigsPerDay ~ TenYearCHD, data = cleaned_data)
+
+wilcox.test(totChol ~ TenYearCHD, data = cleaned_data)
+
+wilcox.test(sysBP ~ TenYearCHD, data = cleaned_data)
+
+wilcox.test(diaBP ~ TenYearCHD, data = cleaned_data)
+
+wilcox.test(BMI ~ TenYearCHD, data = cleaned_data)
+
+wilcox.test(heartRate ~ TenYearCHD, data = cleaned_data)
+
+wilcox.test(glucose ~ TenYearCHD, data = cleaned_data)
+
+```
+
+У переменных age, cigsPerDay, totChol, sysBP, diaBP, BMI, glucose есть статистически значимые различия между группами по TenYearCHD (p-value < 0.05).  
+У переменной heartRate p-value > 0.05, следовательно отвергнуть H0 не можем, группы по TenYearCHD статистически не различаются.
+
+Категориальные переменные: хи-квадрат (т.к. выборка большая).  
+
+```{r}
+chisq.test(table(cleaned_data$sex, cleaned_data$TenYearCHD))
+
+chisq.test(table(cleaned_data$prevalentStroke, cleaned_data$TenYearCHD))
+
+chisq.test(table(cleaned_data$education, cleaned_data$TenYearCHD))
+
+chisq.test(table(cleaned_data$diabetes, cleaned_data$TenYearCHD))
+
+chisq.test(table(cleaned_data$currentSmoker, cleaned_data$TenYearCHD))
+
+chisq.test(table(cleaned_data$BPMeds, cleaned_data$TenYearCHD))
+
+```
+
+У переменных sex, prevalentStroke, education, diabetes, BPMeds есть статистически значимые различия между группами по TenYearCHD (p-value < 0.05).  
+У переменной currentSmoker p-value > 0.05, следовательно отвергнуть H0 не можем, группы по TenYearCHD статистически не различаются.
+
+
+# Далее идут **необязательные** дополнительные задания, которые могут принести вам дополнительные баллы в том числе в случае ошибок в предыдущих
+
+## Корреляционный анализ
+
+1) Создайте корреляционную матрицу с визуализацией и поправкой на множественные сравнения. Объясните, когда лучше использовать корреляционные матрицы и в чём минусы и плюсы корреляционных исследований.
+
+```{r}
+cor_data <- cleaned_data %>%
+  select(where(is.numeric)) %>%
+  filter(complete.cases(.)) %>%
+  cor(use = "pairwise.complete.obs") 
+  
+corrplot(cor_data, method = 'number', type = 'lower', diag = FALSE)
+```
+
+
+## Моделирование
+
+1) Постройте регрессионную модель для переменной **TenYearCHD**. Опишите процесс построения
+
+```{r}
+logit_model <- glm(
+  TenYearCHD ~ sex + age + cigsPerDay + totChol + sysBP + glucose,
+  data = cleaned_data,
+  family = binomial
+)
+
+summary(logit_model)
+```
+
+Семейство binomial выбрано, т.к. зависимая переменная (TenYearCHD) - бинарная. 
+Сначала в логистическую модель были включены все переменные, проведен анализ полученных коэффициентов, после чего переменные с незначимыми коэффициентами (p-value > 0.05) были исключены.
+
+
+
